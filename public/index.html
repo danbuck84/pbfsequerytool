@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FSEconomy Query Tool</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">FSEconomy</div>
+        <h1>Query Tool</h1>
+        <p>Escolha uma consulta, preencha apenas os filtros necessários e veja a resposta em tabela, JSON ou XML.</p>
+      </div>
+      <div class="status" id="statusBadge">Verificando servidor…</div>
+    </header>
+
+    <main class="layout">
+      <aside class="panel sidebar">
+        <label for="querySelect">Tipo de pesquisa</label>
+        <select id="querySelect"></select>
+        <p class="query-description" id="queryDescription"></p>
+        <div id="credentialNotice" class="notice hidden"></div>
+      </aside>
+
+      <section class="panel main-panel">
+        <form id="queryForm">
+          <div class="section-title-row">
+            <div>
+              <div class="eyebrow">Filtros</div>
+              <h2 id="queryTitle">Selecione uma consulta</h2>
+            </div>
+            <button type="submit" class="primary" id="runButton">Pesquisar</button>
+          </div>
+
+          <div id="fields" class="fields"></div>
+        </form>
+
+        <div id="message" class="message hidden"></div>
+
+        <section id="resultSection" class="results hidden">
+          <div class="request-box">
+            <div>
+              <div class="eyebrow">URL montada</div>
+              <code id="requestUrl"></code>
+            </div>
+            <button type="button" class="secondary" id="copyUrlButton">Copiar</button>
+          </div>
+
+          <div class="tabs" role="tablist">
+            <button type="button" class="tab active" data-tab="table">Tabela</button>
+            <button type="button" class="tab" data-tab="json">JSON interpretado</button>
+            <button type="button" class="tab" data-tab="xml">XML bruto</button>
+          </div>
+
+          <div class="tab-panel active" data-panel="table">
+            <div class="table-meta" id="tableMeta"></div>
+            <div class="table-wrap">
+              <table id="resultTable"></table>
+            </div>
+          </div>
+
+          <div class="tab-panel" data-panel="json">
+            <pre id="jsonResult"></pre>
+          </div>
+
+          <div class="tab-panel" data-panel="xml">
+            <pre id="xmlResult"></pre>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer>
+      As chaves da API ficam no servidor Node. O navegador recebe apenas uma versão mascarada da URL.
+    </footer>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>
