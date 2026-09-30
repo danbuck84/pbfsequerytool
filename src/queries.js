@@ -18,6 +18,29 @@ const number = (name, label, options = {}) => ({
   help: options.help ?? "",
 });
 
+const aircraftColumns = [
+  "MakeModel", "Registration", "Owner", "Location", "LocationName",
+  "Home", "RentalDry", "RentalWet", "SalePrice",
+];
+
+const aircraftConfigColumns = [
+  "MakeModel", "Crew", "Seats", "CruiseSpeed", "GPH",
+  "FuelType", "MTOW", "EmptyWeight", "Price",
+];
+
+const jobColumns = [
+  "FromIcao", "ToIcao", "Amount", "Type", "Commodity", "Pay", "Expires",
+];
+
+const flightLogColumns = [
+  "MakeModel", "Registration", "From", "To", "FlightTime",
+  "Distance", "FuelUsed", "Income",
+];
+
+const paymentColumns = [
+  "Date", "To", "From", "Amount", "Reason", "Comment",
+];
+
 const queries = [
   {
     id: "aircraft-status-registration",
@@ -26,6 +49,7 @@ const queries = [
     description: "Looks up aircraft status using an aircraft registration number.",
     query: "aircraft",
     search: "status",
+    essentialColumns: aircraftColumns,
     fields: [text("aircraftreg", "Aircraft Registration")],
   },
   {
@@ -35,6 +59,7 @@ const queries = [
     description: "Returns aircraft configuration data.",
     query: "aircraft",
     search: "configs",
+    essentialColumns: aircraftConfigColumns,
     fields: [],
   },
   {
@@ -53,6 +78,7 @@ const queries = [
     description: "Lists aircraft currently offered for sale.",
     query: "aircraft",
     search: "forsale",
+    essentialColumns: aircraftColumns,
     fields: [],
   },
   {
@@ -62,6 +88,7 @@ const queries = [
     description: "Searches aircraft by exact make/model value.",
     query: "aircraft",
     search: "makemodel",
+    essentialColumns: aircraftColumns,
     fields: [text("makemodel", "Aircraft Make/Model", { placeholder: "e.g. Cessna 172 Skyhawk" })],
   },
   {
@@ -71,6 +98,7 @@ const queries = [
     description: "Searches aircraft by owner name.",
     query: "aircraft",
     search: "ownername",
+    essentialColumns: aircraftColumns,
     fields: [text("ownername", "Aircraft Owner Name")],
   },
   {
@@ -80,6 +108,7 @@ const queries = [
     description: "Searches aircraft by registration.",
     query: "aircraft",
     search: "registration",
+    essentialColumns: aircraftColumns,
     fields: [text("aircraftreg", "Aircraft Registration")],
   },
   {
@@ -89,6 +118,7 @@ const queries = [
     description: "Searches aircraft by serial number / aircraft ID.",
     query: "aircraft",
     search: "serialnumber",
+    essentialColumns: aircraftColumns,
     fields: [text("serialnumber", "Aircraft ID / Serial Number")],
   },
   {
@@ -99,6 +129,7 @@ const queries = [
     query: "aircraft",
     search: "key",
     needsReadAccessKey: true,
+    essentialColumns: aircraftColumns,
     fields: [],
   },
   {
@@ -109,6 +140,7 @@ const queries = [
     query: "assignments",
     search: "key",
     needsReadAccessKey: true,
+    essentialColumns: jobColumns,
     fields: [],
   },
   {
@@ -172,6 +204,7 @@ const queries = [
     query: "flightlogs",
     search: "monthyear",
     needsReadAccessKey: true,
+    essentialColumns: flightLogColumns,
     fields: [
       number("month", "Month", { min: 1, max: 12 }),
       number("year", "Year", { min: 2000, max: 2100 }),
@@ -184,6 +217,7 @@ const queries = [
     description: "Returns flight logs for an aircraft registration in a month/year.",
     query: "flightlogs",
     search: "monthyear",
+    essentialColumns: flightLogColumns,
     fields: [
       text("aircraftreg", "Aircraft Registration"),
       number("month", "Month", { min: 1, max: 12 }),
@@ -197,6 +231,7 @@ const queries = [
     description: "Returns flight logs for an aircraft serial number in a month/year.",
     query: "flightlogs",
     search: "monthyear",
+    essentialColumns: flightLogColumns,
     fields: [
       text("serialnumber", "Aircraft ID / Serial Number"),
       number("month", "Month", { min: 1, max: 12 }),
@@ -211,6 +246,7 @@ const queries = [
     query: "flightlogs",
     search: "id",
     needsReadAccessKey: true,
+    essentialColumns: flightLogColumns,
     fields: [text("fromid", "From ID")],
   },
   {
@@ -222,6 +258,7 @@ const queries = [
     search: "id",
     needsReadAccessKey: true,
     fixedParams: { type: "groupaircraft" },
+    essentialColumns: flightLogColumns,
     fields: [text("fromid", "From ID")],
   },
   {
@@ -231,6 +268,7 @@ const queries = [
     description: "Returns up to 500 flight logs for a registration from an ID.",
     query: "flightlogs",
     search: "id",
+    essentialColumns: flightLogColumns,
     fields: [text("aircraftreg", "Aircraft Registration"), text("fromid", "From ID")],
   },
   {
@@ -240,6 +278,7 @@ const queries = [
     description: "Returns up to 500 flight logs for a serial number from an ID.",
     query: "flightlogs",
     search: "id",
+    essentialColumns: flightLogColumns,
     fields: [text("serialnumber", "Aircraft ID / Serial Number"), text("fromid", "From ID")],
   },
   {
@@ -259,6 +298,7 @@ const queries = [
     description: "Lists aircraft at an ICAO.",
     query: "icao",
     search: "aircraft",
+    essentialColumns: aircraftColumns,
     fields: [text("icao", "ICAO")],
   },
   {
@@ -277,6 +317,7 @@ const queries = [
     description: "Returns jobs whose destination matches one or more ICAOs.",
     query: "icao",
     search: "jobsto",
+    essentialColumns: jobColumns,
     fields: [
       text("icaos", "ICAOs", {
         placeholder: "e.g. CZFA-CEX4-CYMA",
@@ -291,6 +332,7 @@ const queries = [
     description: "Returns jobs whose origin matches one or more ICAOs.",
     query: "icao",
     search: "jobsfrom",
+    essentialColumns: jobColumns,
     fields: [
       text("icaos", "ICAOs", {
         placeholder: "e.g. CZFA-CEX4-CYMA",
@@ -306,6 +348,7 @@ const queries = [
     query: "payments",
     search: "monthyear",
     needsReadAccessKey: true,
+    essentialColumns: paymentColumns,
     fields: [
       number("month", "Month", { min: 1, max: 12 }),
       number("year", "Year", { min: 2000, max: 2100 }),
@@ -319,6 +362,7 @@ const queries = [
     query: "payments",
     search: "id",
     needsReadAccessKey: true,
+    essentialColumns: paymentColumns,
     fields: [text("fromid", "From ID")],
   },
   {
@@ -330,6 +374,7 @@ const queries = [
     search: "monthyear",
     needsReadAccessKey: true,
     flagParams: ["archive"],
+    essentialColumns: paymentColumns,
     fields: [
       number("month", "Month", { min: 1, max: 12 }),
       number("year", "Year", { min: 2000, max: 2100 }),
@@ -344,6 +389,7 @@ const queries = [
     search: "id",
     needsReadAccessKey: true,
     flagParams: ["archive"],
+    essentialColumns: paymentColumns,
     fields: [text("fromid", "From ID")],
   },
   {
@@ -366,6 +412,7 @@ function publicQueryDefinition(query) {
     description: query.description,
     fields: query.fields,
     needsReadAccessKey: Boolean(query.needsReadAccessKey),
+    essentialColumns: query.essentialColumns || [],
   };
 }
 

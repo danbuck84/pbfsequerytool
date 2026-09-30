@@ -2,6 +2,10 @@ const state = {
   queries: [],
   current: null,
   models: [],
+  tableData: null,
+  sortColumn: null,
+  sortAsc: true,
+  activeFilters: {},
 };
 
 const elements = {
@@ -15,14 +19,9 @@ const elements = {
   statusBadge: document.querySelector("#statusBadge"),
   message: document.querySelector("#message"),
   resultSection: document.querySelector("#resultSection"),
-  requestUrl: document.querySelector("#requestUrl"),
-  copyUrlButton: document.querySelector("#copyUrlButton"),
   resultTable: document.querySelector("#resultTable"),
   tableMeta: document.querySelector("#tableMeta"),
-  jsonResult: document.querySelector("#jsonResult"),
-  xmlResult: document.querySelector("#xmlResult"),
-  rentableFilter: document.querySelector("#rentableFilter"),
-  rentableFilterLabel: document.querySelector("#rentableFilterLabel"),
+  tableFilters: document.querySelector("#tableFilters"),
 };
 
 function setMessage(text = "", type = "") {
@@ -249,28 +248,37 @@ function flattenRow(value, prefix = "", output = {}) {
 function tabularize(parsed) {
   const { path, rows } = findRows(parsed);
   const flatRows = rows.map((row) => flattenRow(row));
-  const columns = [];
-  const seen = new Set();
 
+  const allColumns = [];
+  const seen = new Set();
   for (const row of flatRows) {
     for (const key of Object.keys(row)) {
       if (!seen.has(key)) {
         seen.add(key);
-        columns.push(key);
+        allColumns.push(key);
       }
     }
   }
 
-  return { path, columns, rows: flatRows };
+  // Filter to essential columns if the current query defines them
+  let columns = allColumns;
+  const essential = state.current?.essentialColumns;
+  if (essential && essential.length) {
+    const essentialLower = essential.map((c) => c.toLowerCase());
+    const filtered = allColumns.filter((col) => essentialLower.includes(col.toLowerCase()));
+    if (filtered.length) columns = filtered;
+  }
+
+  return { path, columns, rows: flatRows, allColumns };
 }
 
 function renderTable(table) {
   elements.resultTable.innerHTML = "";
-  const { columns = [], rows = [], path } = table || {};
+  const { columns = [], rows = [] } = table || {};
 
   elements.tableMeta.textContent = rows.length
-    ? `${rows.length} registro(s)${path ? ` • detectados em ${path}` : ""}`
-    : "Nenhuma linha tabular foi detectada. Veja as abas JSON ou XML.";
+    ? `${rows.length} registro(s)`
+    : "Nenhum resultado encontrado.";
 
   if (!rows.length || !columns.length) return;
 
@@ -278,7 +286,23 @@ function renderTable(table) {
   const headerRow = document.createElement("tr");
   for (const column of columns) {
     const th = document.createElement("th");
-    th.textContent = column;
+    th.className = "sortable";
+    const label = column;
+    if (state.sortColumn === column) {
+      th.textContent = label + (state.sortAsc ? " ▲" : " ▼");
+      th.classList.add("sorted");
+    } else {
+      th.textContent = label;
+    }
+    th.addEventListener("click", () => {
+      if (state.sortColumn === column) {
+        state.sortAsc = !state.sortAsc;
+      } else {
+        state.sortColumn = column;
+        state.sortAsc = true;
+      }
+      sortAndRender();
+    });
     headerRow.appendChild(th);
   }
   thead.appendChild(headerRow);
@@ -298,42 +322,166 @@ function renderTable(table) {
   elements.resultTable.append(thead, tbody);
 }
 
-async function runQuery(event) {
-  event.preventDefault();
-  if (!state.current) return;
+function getFilteredRows() {
+  if (!state.tableData) return [];
+  let rows = state.tableData.rows;
 
-  setMessage();
-  elements.runButton.disabled = true;
-  elements.runButton.textContent = "Consultando…";
+  for (const [column, filterValue] of Object.entries(state.activeFilters)) {
+    if (!filterValue) continue;
+    rows = rows.filter((row) => {
+      const val = String(row[column] ?? "").toLowerCase();
+      return val === filterValue.toLowerCase();
+    });
+  }
 
-  try {
-    const response = await fetch("/api/query", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ queryId: state.current.id, params: collectParams() }),
+  return rows;
+}
+
+function sortAndRender() {
+  if (!state.tableData) return;
+
+  let rows = getFilteredRows();
+  const col = state.sortColumn;
+  const asc = state.sortAsc;
+
+  if (col) {
+    rows = [...rows].sort((a, b) => {
+      let va = a[col] ?? "";
+      let vb = b[col] ?? "";
+      const na = parseFloat(va);
+      const nb = parseFloat(vb);
+      if (!isNaN(na) && !isNaN(nb)) {
+        return asc ? na - nb : nb - na;
+      }
+      va = String(va).toLowerCase();
+      vb = String(vb).toLowerCase();
+      if (va < vb) return asc ? -1 : 1;
+      if (va > vb) return asc ? 1 : -1;
+      return 0;
+    });
+  }
+
+  renderTable({ ...state.tableData, rows });
+}
+
+function buildFilters() {
+  elements.tableFilters.innerHTML = "";
+  if (!state.tableData || !state.tableData.rows.length) return;
+
+  const columns = state.tableData.columns;
+  const rows = state.tableData.rows;
+
+  // Rentable filter: show when RentalDry or RentalWet columns exist
+  const hasRentalDry = columns.some((c) => c.toLowerCase() === "rentaldry");
+  const hasRentalWet = columns.some((c) => c.toLowerCase() === "rentalwet");
+
+  if (hasRentalDry || hasRentalWet) {
+    const label = document.createElement("label");
+    label.className = "filter-toggle";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) {
+        // Custom filter for rentable
+        state.tableData._rentableOnly = true;
+      } else {
+        state.tableData._rentableOnly = false;
+      }
+      applyAllFilters();
+    });
+    label.append(checkbox, " Apenas alugáveis");
+    elements.tableFilters.appendChild(label);
+  }
+
+  // Dropdown filters for columns with few unique values (like Type, Commodity)
+  const filterableCols = ["Type", "Commodity", "UnitType"];
+  for (const colName of filterableCols) {
+    const matchedCol = columns.find((c) => c.toLowerCase() === colName.toLowerCase());
+    if (!matchedCol) continue;
+
+    const uniqueValues = [...new Set(rows.map((r) => String(r[matchedCol] ?? "")).filter(Boolean))].sort();
+    if (uniqueValues.length < 2 || uniqueValues.length > 50) continue;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "filter-dropdown";
+
+    const selectLabel = document.createElement("label");
+    selectLabel.textContent = matchedCol + ":";
+    selectLabel.className = "filter-label";
+
+    const select = document.createElement("select");
+    select.className = "filter-select";
+
+    const allOption = document.createElement("option");
+    allOption.value = "";
+    allOption.textContent = "Todos";
+    select.appendChild(allOption);
+
+    for (const val of uniqueValues) {
+      const opt = document.createElement("option");
+      opt.value = val;
+      opt.textContent = val;
+      select.appendChild(opt);
+    }
+
+    select.addEventListener("change", () => {
+      state.activeFilters[matchedCol] = select.value;
+      applyAllFilters();
     });
 
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Falha na consulta.");
-
-    const parsed = parseXml(data.raw || "");
-    const table = tabularize(parsed);
-
-    elements.requestUrl.textContent = data.requestUrl || "";
-    elements.jsonResult.textContent = JSON.stringify(parsed, null, 2);
-    elements.xmlResult.textContent = data.raw || "";
-    renderTable(table);
-
-    elements.resultSection.classList.remove("hidden");
-    elements.rentableFilter.checked = false;
-    setMessage("Consulta concluída.", "success");
-  } catch (error) {
-    elements.resultSection.classList.add("hidden");
-    setMessage(error.message, "error");
-  } finally {
-    elements.runButton.disabled = false;
-    elements.runButton.textContent = "Pesquisar";
+    wrapper.append(selectLabel, select);
+    elements.tableFilters.appendChild(wrapper);
   }
+}
+
+function applyAllFilters() {
+  if (!state.tableData) return;
+
+  let rows = state.tableData.rows;
+
+  // Apply dropdown filters
+  for (const [column, filterValue] of Object.entries(state.activeFilters)) {
+    if (!filterValue) continue;
+    rows = rows.filter((row) => {
+      const val = String(row[column] ?? "").toLowerCase();
+      return val === filterValue.toLowerCase();
+    });
+  }
+
+  // Apply rentable filter
+  if (state.tableData._rentableOnly) {
+    const cols = state.tableData.columns;
+    const dryCol = cols.find((c) => c.toLowerCase() === "rentaldry");
+    const wetCol = cols.find((c) => c.toLowerCase() === "rentalwet");
+
+    rows = rows.filter((row) => {
+      const dry = dryCol ? parseFloat(row[dryCol]) || 0 : 0;
+      const wet = wetCol ? parseFloat(row[wetCol]) || 0 : 0;
+      return dry > 0 || wet > 0;
+    });
+  }
+
+  // Apply sorting
+  const col = state.sortColumn;
+  const asc = state.sortAsc;
+  if (col) {
+    rows = [...rows].sort((a, b) => {
+      let va = a[col] ?? "";
+      let vb = b[col] ?? "";
+      const na = parseFloat(va);
+      const nb = parseFloat(vb);
+      if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+      va = String(va).toLowerCase();
+      vb = String(vb).toLowerCase();
+      if (va < vb) return asc ? -1 : 1;
+      if (va > vb) return asc ? 1 : -1;
+      return 0;
+    });
+  }
+
+  renderTable({ ...state.tableData, rows });
+
+  elements.tableMeta.textContent = `${rows.length} de ${state.tableData.rows.length} registro(s)`;
 }
 
 async function loadModels() {
@@ -355,64 +503,50 @@ async function loadModels() {
   }
 }
 
-function filterRentable(showOnlyRentable) {
-  const tbody = elements.resultTable.querySelector("tbody");
-  if (!tbody) return;
+async function runQuery(event) {
+  event.preventDefault();
+  if (!state.current) return;
 
-  const headers = [...elements.resultTable.querySelectorAll("th")].map((th) => th.textContent.toLowerCase());
-  const dryIndex = headers.findIndex((h) => h.includes("rentaldry") || h === "rentalpricedry");
-  const wetIndex = headers.findIndex((h) => h.includes("rentalwet") || h === "rentalpricewet");
+  setMessage();
+  elements.runButton.disabled = true;
+  elements.runButton.textContent = "Consultando…";
 
-  if (dryIndex === -1 && wetIndex === -1) {
-    elements.rentableFilterLabel.title = "Dados de aluguel não disponíveis nesta consulta.";
-    return;
-  }
-
-  const rows = tbody.querySelectorAll("tr");
-  let visibleCount = 0;
-
-  for (const row of rows) {
-    const cells = row.querySelectorAll("td");
-    const dry = dryIndex >= 0 ? parseFloat(cells[dryIndex]?.textContent) || 0 : 0;
-    const wet = wetIndex >= 0 ? parseFloat(cells[wetIndex]?.textContent) || 0 : 0;
-    const rentable = dry > 0 || wet > 0;
-    const visible = !showOnlyRentable || rentable;
-    row.style.display = visible ? "" : "none";
-    if (visible) visibleCount++;
-  }
-
-  const totalRows = rows.length;
-  if (showOnlyRentable) {
-    elements.tableMeta.textContent = `${visibleCount} alugável(is) de ${totalRows} registro(s)`;
-  }
-}
-
-function setupTabs() {
-  document.querySelectorAll(".tab").forEach((button) => {
-    button.addEventListener("click", () => {
-      const tab = button.dataset.tab;
-      document.querySelectorAll(".tab").forEach((item) => item.classList.toggle("active", item === button));
-      document.querySelectorAll(".tab-panel").forEach((panel) => {
-        panel.classList.toggle("active", panel.dataset.panel === tab);
-      });
+  try {
+    const response = await fetch("/api/query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ queryId: state.current.id, params: collectParams() }),
     });
-  });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Falha na consulta.");
+
+    const parsed = parseXml(data.raw || "");
+
+    state.sortColumn = null;
+    state.sortAsc = true;
+    state.activeFilters = {};
+    state.tableData = null;
+
+    const table = tabularize(parsed);
+    state.tableData = table;
+
+    renderTable(table);
+    buildFilters();
+
+    elements.resultSection.classList.remove("hidden");
+  } catch (error) {
+    elements.resultSection.classList.add("hidden");
+    setMessage(error.message, "error");
+  } finally {
+    elements.runButton.disabled = false;
+    elements.runButton.textContent = "Pesquisar";
+  }
 }
 
 async function bootstrap() {
-  setupTabs();
-
   elements.querySelect.addEventListener("change", (event) => selectQuery(event.target.value));
   elements.form.addEventListener("submit", runQuery);
-  elements.copyUrlButton.addEventListener("click", async () => {
-    await navigator.clipboard.writeText(elements.requestUrl.textContent);
-    const original = elements.copyUrlButton.textContent;
-    elements.copyUrlButton.textContent = "Copiado";
-    setTimeout(() => (elements.copyUrlButton.textContent = original), 900);
-  });
-  elements.rentableFilter.addEventListener("change", (event) => {
-    filterRentable(event.target.checked);
-  });
 
   const [queriesResponse, healthResponse] = await Promise.all([fetch("/api/queries"), fetch("/api/health")]);
   const queriesData = await queriesResponse.json();

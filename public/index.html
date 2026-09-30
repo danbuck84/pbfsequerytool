@@ -11,7 +11,7 @@
       <div>
         <div class="eyebrow">FSEconomy</div>
         <h1>Query Tool</h1>
-        <p>Escolha uma consulta, preencha apenas os filtros necessários e veja a resposta em tabela, JSON ou XML.</p>
+        <p>Escolha uma consulta, preencha os filtros e veja os resultados.</p>
       </div>
       <div class="status" id="statusBadge">Verificando servidor…</div>
     </header>
@@ -40,46 +40,19 @@
         <div id="message" class="message hidden"></div>
 
         <section id="resultSection" class="results hidden">
-          <div class="request-box">
-            <div>
-              <div class="eyebrow">URL montada</div>
-              <code id="requestUrl"></code>
-            </div>
-            <button type="button" class="secondary" id="copyUrlButton">Copiar</button>
+          <div class="table-controls">
+            <div class="table-meta" id="tableMeta"></div>
+            <div class="table-filters" id="tableFilters"></div>
           </div>
-
-          <div class="tabs" role="tablist">
-            <button type="button" class="tab active" data-tab="table">Tabela</button>
-            <button type="button" class="tab" data-tab="json">JSON interpretado</button>
-            <button type="button" class="tab" data-tab="xml">XML bruto</button>
-          </div>
-
-          <div class="tab-panel active" data-panel="table">
-            <div class="table-controls">
-              <div class="table-meta" id="tableMeta"></div>
-              <label class="filter-toggle" id="rentableFilterLabel">
-                <input type="checkbox" id="rentableFilter" />
-                Mostrar apenas alugáveis
-              </label>
-            </div>
-            <div class="table-wrap">
-              <table id="resultTable"></table>
-            </div>
-          </div>
-
-          <div class="tab-panel" data-panel="json">
-            <pre id="jsonResult"></pre>
-          </div>
-
-          <div class="tab-panel" data-panel="xml">
-            <pre id="xmlResult"></pre>
+          <div class="table-wrap">
+            <table id="resultTable"></table>
           </div>
         </section>
       </section>
     </main>
 
     <footer>
-      As chaves da API ficam no servidor Node. O navegador recebe apenas uma versão mascarada da URL.
+      As chaves da API ficam no servidor. O navegador não tem acesso direto a elas.
     </footer>
 
     <script src="/app.js" defer></script>
