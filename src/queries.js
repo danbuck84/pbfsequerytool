@@ -181,7 +181,8 @@ const queries = [
         { value: "", label: "Qualquer / Indiferente" },
         { value: "VIP", label: "VIP" },
         { value: "Trip", label: "Trip" },
-        { value: "All-In", label: "All-In" }
+        { value: "All-In", label: "All-In" },
+        { value: "Group", label: "Group" }
       ], { required: false }),
       text("makemodel", "Aircraft Make/Model", { placeholder: "e.g. Embraer Phenom 100" }),
       checkbox("rentableOnly", "Somente aeronaves disponíveis para alugar", { checked: true })
