@@ -96,3 +96,6 @@ module.exports = {
   redactUrl,
   executeQuery,
 };
+// Note: Node.js does not have DOMParser built-in. We can't use browser DOMParser in Netlify Functions easily without a library.
+// For the matcher function, it's better to implement a simple regex-based XML parser or just use a lightweight one.
+// Let's modify the matcher function instead to not rely on DOMParser.

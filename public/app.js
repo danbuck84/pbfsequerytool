@@ -512,25 +512,36 @@ async function runQuery(event) {
   elements.runButton.textContent = "Consultando…";
 
   try {
-    const response = await fetch("/api/query", {
+    const isMatcher = state.current.query === "matcher";
+    const endpoint = isMatcher ? "/api/matcher" : "/api/query";
+    const bodyPayload = isMatcher ? collectParams() : { queryId: state.current.id, params: collectParams() };
+
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ queryId: state.current.id, params: collectParams() }),
+      body: JSON.stringify(bodyPayload),
     });
 
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Falha na consulta.");
-
-    const parsed = parseXml(data.raw || "");
 
     state.sortColumn = null;
     state.sortAsc = true;
     state.activeFilters = {};
     state.tableData = null;
 
-    const table = tabularize(parsed);
+    let table;
+    if (isMatcher) {
+      // Data is already an array of flat objects
+      const rows = data.matches || [];
+      const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+      table = { columns, rows, allColumns: columns };
+    } else {
+      const parsed = parseXml(data.raw || "");
+      table = tabularize(parsed);
+    }
+    
     state.tableData = table;
-
     renderTable(table);
     buildFilters();
 

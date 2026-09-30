@@ -173,6 +173,25 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  if (req.method === "POST" && url.pathname === "/api/matcher") {
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch {
+      return sendJson(res, 400, { error: "Invalid JSON" });
+    }
+    try {
+      const matcherHandler = require("./netlify/functions/matcher").handler;
+      const response = await matcherHandler({
+        httpMethod: "POST",
+        body: JSON.stringify(body)
+      });
+      return sendJson(res, response.statusCode, JSON.parse(response.body));
+    } catch (error) {
+      return sendJson(res, 502, { error: error.message });
+    }
+  }
+
   if (req.method === "GET") return serveStatic(req, res);
 
   res.writeHead(405, { "Content-Type": "text/plain; charset=utf-8" });

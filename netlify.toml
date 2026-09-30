@@ -22,3 +22,8 @@
   from = "/api/models"
   to = "/.netlify/functions/models"
   status = 200
+
+[[redirects]]
+  from = "/api/matcher"
+  to = "/.netlify/functions/matcher"
+  status = 200

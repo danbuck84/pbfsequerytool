@@ -148,6 +148,19 @@ const queries = [
     fields: [],
   },
   {
+    id: "smart-job-matcher",
+    category: "Smart Tools",
+    label: "Smart Job Matcher",
+    description: "Finds jobs for a specific commodity from your hubs that fit a specific rentable aircraft.",
+    query: "matcher", // special identifier for the UI to hit the matcher endpoint
+    search: "custom",
+    fields: [
+      text("icaos", "Hubs (ICAOs)", { placeholder: "e.g. SBGR-SBSP-SBKP", help: "Separados por hífen." }),
+      text("commodity", "Commodity", { placeholder: "e.g. VIP" }),
+      text("makemodel", "Aircraft Make/Model", { placeholder: "e.g. Embraer Phenom 100" })
+    ],
+  },
+  {
     id: "commodities-by-key",
     category: "Account / Group",
     label: "Commodities By Key",
