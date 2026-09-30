@@ -110,16 +110,18 @@ button:disabled { opacity: .6; cursor: wait; }
 .filter-select { width: auto; min-width: 100px; padding: 6px 10px; font-size: 13px; border-radius: 7px; }
 
 /* Sortable table */
-.table-wrap { width: 100%; overflow: auto; border: 1px solid #dfe4e8; border-radius: 12px; }
+.table-wrap { width: 100%; max-height: 65vh; overflow: auto; border: 1px solid #dfe4e8; border-radius: 12px; }
 table { border-collapse: collapse; width: max-content; min-width: 100%; background: white; }
 th, td { padding: 9px 11px; border-bottom: 1px solid #e6eaee; border-right: 1px solid #eef1f3; text-align: left; white-space: nowrap; font-size: 13px; }
 th {
   position: sticky;
   top: 0;
+  z-index: 10;
   background: #f2f5f7;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: .04em;
+  box-shadow: 0 1px 0 #dfe4e8; /* Fake border to stick with header */
 }
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { background: #e4e9ed; }
