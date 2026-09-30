@@ -177,17 +177,11 @@ const queries = [
         help: "Deixe vazio para pesquisar no MUNDO INTEIRO (Onde tiver esse avião).", 
         required: false 
       }),
-      select("commodity", "Commodity", [
-        { value: "", label: "Qualquer Carga / Indiferente" },
+      select("commodity", "Job Type", [
+        { value: "", label: "Qualquer / Indiferente" },
         { value: "VIP", label: "VIP" },
-        { value: "Passengers", label: "Passengers" },
-        { value: "Supplies", label: "Supplies" },
-        { value: "Building Materials", label: "Building Materials" },
-        { value: "Equipment", label: "Equipment" },
-        { value: "Fuel 100LL", label: "Fuel 100LL" },
-        { value: "Fuel JetA", label: "Fuel JetA" },
-        { value: "Medical Supplies", label: "Medical Supplies" },
-        { value: "Freight", label: "Freight (Normal Cargo)" },
+        { value: "Trip", label: "Trip" },
+        { value: "All-In", label: "All-In" }
       ], { required: false }),
       text("makemodel", "Aircraft Make/Model", { placeholder: "e.g. Embraer Phenom 100" }),
       checkbox("rentableOnly", "Somente aeronaves disponíveis para alugar", { checked: true })

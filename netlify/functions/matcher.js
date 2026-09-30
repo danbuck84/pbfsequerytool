@@ -103,15 +103,14 @@ exports.handler = async (event) => {
       allJobs = allJobs.concat(chunkJobs);
     }
 
-    // 5. Filter jobs by commodity/type and capacity
-    const commodityLower = (commodity || "").toLowerCase();
+    // 5. Filter jobs by Type
+    const typeLower = (commodity || "").toLowerCase();
     
     const finalJobs = allJobs.filter(j => {
-      // Check both Commodity and Type tags for matches (e.g. VIP is often in Type)
-      if (commodityLower) {
-        const comm = (j.Commodity || "").toLowerCase();
+      // Check only the Type tag
+      if (typeLower) {
         const type = (j.Type || "").toLowerCase();
-        if (!comm.includes(commodityLower) && !type.includes(commodityLower)) {
+        if (!type.includes(typeLower)) {
           return false;
         }
       }
@@ -135,7 +134,7 @@ exports.handler = async (event) => {
       return {
         Origin: j.Location,
         Destination: j.ToIcao,
-        Commodity: j.Commodity || j.Type || "N/A", // Use Type if Commodity is empty
+        Type: j.Type || "-",
         Amount: `${j.Amount} ${j.UnitType}`,
         Distance: distance > 0 ? distance : "?",
         Pay: pay,
