@@ -99,7 +99,7 @@ exports.handler = async (event) => {
       const chunkIcaos = chunk.join("-");
       const jobsUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=icao&search=jobsfrom&icaos=${encodeURIComponent(chunkIcaos)}`;
       const jobsRes = await executeQuery(jobsUrl);
-      const chunkJobs = parseFseXml(jobsRes.raw, "Job");
+      const chunkJobs = parseFseXml(jobsRes.raw, "Assignment");
       allJobs = allJobs.concat(chunkJobs);
     }
 
