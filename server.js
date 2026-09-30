@@ -113,6 +113,23 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { queries: queries.map(publicQueryDefinition) });
   }
 
+  if (req.method === "GET" && url.pathname === "/api/models") {
+    try {
+      const configUrl = `${baseUrl}?userkey=${encodeURIComponent(process.env.FSE_USER_KEY)}&format=xml&query=aircraft&search=configs`;
+      const { raw } = await executeQuery(configUrl);
+      const models = new Set();
+      const regex = /<MakeModel>([^<]+)<\/MakeModel>/g;
+      let match;
+      while ((match = regex.exec(raw)) !== null) {
+        models.add(match[1].trim());
+      }
+      const sorted = [...models].sort((a, b) => a.localeCompare(b));
+      return sendJson(res, 200, { models: sorted });
+    } catch (error) {
+      return sendJson(res, 502, { error: error.message, models: [] });
+    }
+  }
+
   if (req.method === "POST" && url.pathname === "/api/query") {
     let body;
     try {

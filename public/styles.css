@@ -116,6 +116,10 @@ button:disabled { opacity: .6; cursor: wait; }
 .tab-panel.active { display: block; }
 
 .table-meta { color: #66717d; font-size: 13px; margin-bottom: 8px; }
+.table-controls { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.table-controls .table-meta { margin-bottom: 0; }
+.filter-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #41505d; cursor: pointer; white-space: nowrap; }
+.filter-toggle input[type="checkbox"] { width: auto; cursor: pointer; }
 .table-wrap { width: 100%; overflow: auto; border: 1px solid #dfe4e8; border-radius: 12px; }
 table { border-collapse: collapse; width: max-content; min-width: 100%; background: white; }
 th, td { padding: 9px 11px; border-bottom: 1px solid #e6eaee; border-right: 1px solid #eef1f3; text-align: left; white-space: nowrap; font-size: 13px; }

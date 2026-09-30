@@ -1,6 +1,7 @@
 const state = {
   queries: [],
   current: null,
+  models: [],
 };
 
 const elements = {
@@ -20,6 +21,8 @@ const elements = {
   tableMeta: document.querySelector("#tableMeta"),
   jsonResult: document.querySelector("#jsonResult"),
   xmlResult: document.querySelector("#xmlResult"),
+  rentableFilter: document.querySelector("#rentableFilter"),
+  rentableFilterLabel: document.querySelector("#rentableFilterLabel"),
 };
 
 function setMessage(text = "", type = "") {
@@ -85,6 +88,7 @@ function renderFields(query) {
 
     if (field.min !== undefined) input.min = field.min;
     if (field.max !== undefined) input.max = field.max;
+    if (field.name === "makemodel") input.setAttribute("list", "modelSuggestions");
 
     wrapper.append(label, input);
 
@@ -321,6 +325,7 @@ async function runQuery(event) {
     renderTable(table);
 
     elements.resultSection.classList.remove("hidden");
+    elements.rentableFilter.checked = false;
     setMessage("Consulta concluída.", "success");
   } catch (error) {
     elements.resultSection.classList.add("hidden");
@@ -328,6 +333,57 @@ async function runQuery(event) {
   } finally {
     elements.runButton.disabled = false;
     elements.runButton.textContent = "Pesquisar";
+  }
+}
+
+async function loadModels() {
+  try {
+    const response = await fetch("/api/models");
+    const data = await response.json();
+    state.models = data.models || [];
+
+    const datalist = document.createElement("datalist");
+    datalist.id = "modelSuggestions";
+    for (const model of state.models) {
+      const option = document.createElement("option");
+      option.value = model;
+      datalist.appendChild(option);
+    }
+    document.body.appendChild(datalist);
+  } catch (e) {
+    console.warn("Could not load aircraft models for autocomplete:", e);
+  }
+}
+
+function filterRentable(showOnlyRentable) {
+  const tbody = elements.resultTable.querySelector("tbody");
+  if (!tbody) return;
+
+  const headers = [...elements.resultTable.querySelectorAll("th")].map((th) => th.textContent.toLowerCase());
+  const dryIndex = headers.findIndex((h) => h.includes("rentaldry") || h === "rentalpricedry");
+  const wetIndex = headers.findIndex((h) => h.includes("rentalwet") || h === "rentalpricewet");
+
+  if (dryIndex === -1 && wetIndex === -1) {
+    elements.rentableFilterLabel.title = "Dados de aluguel não disponíveis nesta consulta.";
+    return;
+  }
+
+  const rows = tbody.querySelectorAll("tr");
+  let visibleCount = 0;
+
+  for (const row of rows) {
+    const cells = row.querySelectorAll("td");
+    const dry = dryIndex >= 0 ? parseFloat(cells[dryIndex]?.textContent) || 0 : 0;
+    const wet = wetIndex >= 0 ? parseFloat(cells[wetIndex]?.textContent) || 0 : 0;
+    const rentable = dry > 0 || wet > 0;
+    const visible = !showOnlyRentable || rentable;
+    row.style.display = visible ? "" : "none";
+    if (visible) visibleCount++;
+  }
+
+  const totalRows = rows.length;
+  if (showOnlyRentable) {
+    elements.tableMeta.textContent = `${visibleCount} alugável(is) de ${totalRows} registro(s)`;
   }
 }
 
@@ -354,6 +410,9 @@ async function bootstrap() {
     elements.copyUrlButton.textContent = "Copiado";
     setTimeout(() => (elements.copyUrlButton.textContent = original), 900);
   });
+  elements.rentableFilter.addEventListener("change", (event) => {
+    filterRentable(event.target.checked);
+  });
 
   const [queriesResponse, healthResponse] = await Promise.all([fetch("/api/queries"), fetch("/api/health")]);
   const queriesData = await queriesResponse.json();
@@ -362,6 +421,9 @@ async function bootstrap() {
   state.queries = queriesData.queries || [];
   renderQueryOptions();
   selectQuery(state.queries[0]?.id);
+
+  // Load aircraft models for autocomplete (non-blocking)
+  loadModels();
 
   if (health.userKeyConfigured) {
     elements.statusBadge.textContent = health.readAccessKeyConfigured ? "Chaves configuradas" : "User key configurada";

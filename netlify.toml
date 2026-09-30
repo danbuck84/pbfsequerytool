@@ -17,3 +17,8 @@
   from = "/api/query"
   to = "/.netlify/functions/query"
   status = 200
+
+[[redirects]]
+  from = "/api/models"
+  to = "/.netlify/functions/models"
+  status = 200
