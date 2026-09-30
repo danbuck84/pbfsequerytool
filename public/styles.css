@@ -86,6 +86,20 @@ h2 { margin: 2px 0 0; font-size: 24px; }
 .field small { display: block; color: #6b7480; margin-top: 5px; }
 .empty-fields { color: #6b7480; padding: 14px 0 4px; }
 
+.field-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.field-checkbox label {
+  margin-bottom: 0;
+}
+.field-checkbox input[type="checkbox"] {
+  width: auto;
+  cursor: pointer;
+}
+
 button {
   border: 0;
   border-radius: 9px;

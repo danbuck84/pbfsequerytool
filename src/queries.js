@@ -18,6 +18,23 @@ const number = (name, label, options = {}) => ({
   help: options.help ?? "",
 });
 
+const select = (name, label, optionsArr, opts = {}) => ({
+  name,
+  label,
+  type: "select",
+  options: optionsArr,
+  required: opts.required ?? true,
+  help: opts.help ?? "",
+});
+
+const checkbox = (name, label, opts = {}) => ({
+  name,
+  label,
+  type: "checkbox",
+  checked: opts.checked ?? false,
+  help: opts.help ?? "",
+});
+
 const aircraftColumns = [
   "MakeModel", "Registration", "Owner", "Location", "LocationName",
   "Home", "RentalDry", "RentalWet", "SalePrice",
@@ -152,12 +169,24 @@ const queries = [
     category: "Smart Tools",
     label: "Smart Job Matcher",
     description: "Finds jobs for a specific commodity from your hubs that fit a specific rentable aircraft.",
-    query: "matcher", // special identifier for the UI to hit the matcher endpoint
+    query: "matcher",
     search: "custom",
     fields: [
       text("icaos", "Hubs (ICAOs)", { placeholder: "e.g. SBGR-SBSP-SBKP", help: "Separados por hífen." }),
-      text("commodity", "Commodity", { placeholder: "e.g. VIP" }),
-      text("makemodel", "Aircraft Make/Model", { placeholder: "e.g. Embraer Phenom 100" })
+      select("commodity", "Commodity", [
+        { value: "", label: "Qualquer Carga / Indiferente" },
+        { value: "VIP", label: "VIP" },
+        { value: "Passengers", label: "Passengers" },
+        { value: "Supplies", label: "Supplies" },
+        { value: "Building Materials", label: "Building Materials" },
+        { value: "Equipment", label: "Equipment" },
+        { value: "Fuel 100LL", label: "Fuel 100LL" },
+        { value: "Fuel JetA", label: "Fuel JetA" },
+        { value: "Medical Supplies", label: "Medical Supplies" },
+        { value: "Freight", label: "Freight (Normal Cargo)" },
+      ], { required: false }),
+      text("makemodel", "Aircraft Make/Model", { placeholder: "e.g. Embraer Phenom 100" }),
+      checkbox("rentableOnly", "Somente aeronaves disponíveis para alugar", { checked: true })
     ],
   },
   {

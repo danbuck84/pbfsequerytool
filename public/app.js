@@ -71,25 +71,47 @@ function renderFields(query) {
 
   for (const field of query.fields) {
     const wrapper = document.createElement("div");
-    wrapper.className = "field";
+    wrapper.className = "field" + (field.type === "checkbox" ? " field-checkbox" : "");
 
     const label = document.createElement("label");
     label.htmlFor = `field-${field.name}`;
     label.textContent = field.label;
 
-    const input = document.createElement("input");
-    input.id = `field-${field.name}`;
-    input.name = field.name;
-    input.type = field.type || "text";
-    input.placeholder = field.placeholder || "";
-    input.required = Boolean(field.required);
-    input.autocomplete = "off";
+    let input;
+    if (field.type === "select") {
+      input = document.createElement("select");
+      input.id = `field-${field.name}`;
+      input.name = field.name;
+      input.required = Boolean(field.required);
+      for (const opt of field.options) {
+        const option = document.createElement("option");
+        option.value = opt.value;
+        option.textContent = opt.label;
+        input.appendChild(option);
+      }
+    } else {
+      input = document.createElement("input");
+      input.id = `field-${field.name}`;
+      input.name = field.name;
+      input.type = field.type || "text";
+      
+      if (field.type === "checkbox") {
+        input.checked = Boolean(field.checked);
+      } else {
+        input.placeholder = field.placeholder || "";
+        input.required = Boolean(field.required);
+        input.autocomplete = "off";
+        if (field.min !== undefined) input.min = field.min;
+        if (field.max !== undefined) input.max = field.max;
+        if (field.name === "makemodel") input.setAttribute("list", "modelSuggestions");
+      }
+    }
 
-    if (field.min !== undefined) input.min = field.min;
-    if (field.max !== undefined) input.max = field.max;
-    if (field.name === "makemodel") input.setAttribute("list", "modelSuggestions");
-
-    wrapper.append(label, input);
+    if (field.type === "checkbox") {
+      wrapper.append(input, label);
+    } else {
+      wrapper.append(label, input);
+    }
 
     if (field.help) {
       const help = document.createElement("small");
@@ -126,8 +148,13 @@ function collectParams() {
   const formData = new FormData(elements.form);
   const params = {};
   for (const field of state.current.fields) {
-    const value = formData.get(field.name);
-    params[field.name] = typeof value === "string" ? value.trim() : value;
+    if (field.type === "checkbox") {
+      const input = elements.form.querySelector(`[name="${field.name}"]`);
+      params[field.name] = input ? input.checked : false;
+    } else {
+      const value = formData.get(field.name);
+      params[field.name] = typeof value === "string" ? value.trim() : value;
+    }
   }
   return params;
 }

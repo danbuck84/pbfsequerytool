@@ -32,9 +32,9 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: "Invalid JSON" }) };
   }
 
-  const { icaos, commodity, makemodel } = body;
-  if (!icaos || !commodity || !makemodel) {
-    return { statusCode: 400, body: JSON.stringify({ error: "Missing required fields (icaos, commodity, makemodel)" }) };
+  const { icaos, commodity, makemodel, rentableOnly } = body;
+  if (!icaos || !makemodel) {
+    return { statusCode: 400, body: JSON.stringify({ error: "Missing required fields (icaos, makemodel)" }) };
   }
 
   try {
@@ -44,7 +44,7 @@ exports.handler = async (event) => {
     const allJobs = parseFseXml(jobsRes.raw, "Job");
 
     // 2. Filter jobs by commodity
-    const commodityLower = commodity.toLowerCase();
+    const commodityLower = (commodity || "").toLowerCase();
     const matchedJobs = allJobs.filter(j => (j.Commodity || "").toLowerCase().includes(commodityLower));
 
     if (matchedJobs.length === 0) {
@@ -65,7 +65,8 @@ exports.handler = async (event) => {
         const isModel = a.MakeModel === makemodel;
         const dry = parseFloat(a.RentalDry) || 0;
         const wet = parseFloat(a.RentalWet) || 0;
-        return isModel && (dry > 0 || wet > 0);
+        const isRentable = dry > 0 || wet > 0;
+        return isModel && (!rentableOnly || isRentable);
       });
       
       if (rentableOfModel.length > 0) {
@@ -110,7 +111,7 @@ exports.handler = async (event) => {
       Commodity: j.Commodity,
       Amount: `${j.Amount} ${j.UnitType}`,
       Pay: parseFloat(j.Pay) || 0,
-      AvailableRentals: aircraftAvailable[j.Location].join(", ")
+      Aeronaves: aircraftAvailable[j.Location].join(", ")
     }));
 
     // Sort by pay descending by default
