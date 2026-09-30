@@ -532,7 +532,14 @@ async function loadModels() {
 
 async function runQuery(event) {
   event.preventDefault();
-  if (!state.current) return;
+  
+  console.log("=== RUN QUERY STARTED ===");
+  console.log("Current state:", state.current);
+  
+  if (!state.current) {
+    console.error("NO STATE.CURRENT!");
+    return;
+  }
 
   setMessage();
   elements.runButton.disabled = true;
@@ -540,16 +547,25 @@ async function runQuery(event) {
 
   try {
     const isMatcher = state.current.query === "matcher";
+    console.log("isMatcher:", isMatcher);
+    
     const endpoint = isMatcher ? "/api/matcher" : "/api/query";
     const bodyPayload = isMatcher ? collectParams() : { queryId: state.current.id, params: collectParams() };
+    
+    console.log("Endpoint:", endpoint);
+    console.log("Payload:", bodyPayload);
 
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(bodyPayload),
     });
+    
+    console.log("Response status:", response.status);
 
     const data = await response.json();
+    console.log("Response data:", data);
+
     if (!response.ok) throw new Error(data.error || "Falha na consulta.");
 
     state.sortColumn = null;
@@ -559,14 +575,18 @@ async function runQuery(event) {
 
     let table;
     if (isMatcher) {
+      console.log("Parsing as MATCHER");
       // Data is already an array of flat objects
       const rows = data.matches || [];
       const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
       table = { columns, rows, allColumns: columns };
     } else {
+      console.log("Parsing as RAW XML");
       const parsed = parseXml(data.raw || "");
       table = tabularize(parsed);
     }
+    
+    console.log("Final table built:", table);
     
     state.tableData = table;
     renderTable(table);
@@ -574,12 +594,14 @@ async function runQuery(event) {
 
     elements.resultSection.classList.remove("hidden");
     
-    // FORCE DUMP TO SCREEN
+    // FORCE DUMP
     if (isMatcher) {
-      elements.resultTable.innerHTML += `<tr><td colspan="10" style="text-align:left; background:#fff; padding:20px; font-size:12px; font-family:monospace; color:#c00; white-space:pre-wrap; word-break:break-all;">DATA DUMP:\n${JSON.stringify(data, null, 2)}</td></tr>`;
+      elements.message.textContent = `RAW DATA: ${JSON.stringify(data)}`;
+      elements.message.className = "message ok";
     }
     
   } catch (error) {
+    console.error("ERROR CAUGHT:", error);
     elements.resultSection.classList.add("hidden");
     setMessage(error.message, "error");
   } finally {
