@@ -52,62 +52,45 @@ exports.handler = async (event) => {
     const empty = config ? parseFloat(config.EmptyWeight) || 0 : 0;
     const maxPayload = mtow - empty;
 
-    let origins = [];
+    // 2. ALWAYS fetch aircraft globally by makemodel to ensure we get Rental prices.
+    const acUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=aircraft&search=makemodel&makemodel=${encodeURIComponent(makemodel)}`;
+    const acRes = await executeQuery(acUrl);
+    const acList = parseFseXml(acRes.raw, "Aircraft");
+
     const aircraftAvailable = {}; // ICAO -> Array of rentable registrations
-
-    if (icaos && icaos.trim()) {
-      // MODE 1: Specific ICAOs provided
-      origins = icaos.split("-").map(s => s.trim().toUpperCase()).filter(Boolean);
+    for (const a of acList) {
+      const dry = parseFloat(a.RentalDry) || 0;
+      const wet = parseFloat(a.RentalWet) || 0;
+      const isRentable = dry > 0 || wet > 0;
       
-      // Fetch aircraft individually for these origins
-      for (const icao of origins) {
-        const acUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=icao&search=aircraft&icao=${encodeURIComponent(icao)}`;
-        const acRes = await executeQuery(acUrl);
-        const acList = parseFseXml(acRes.raw, "Aircraft");
-        
-        const rentableOfModel = acList.filter(a => {
-          const isModel = a.MakeModel === makemodel;
-          const dry = parseFloat(a.RentalDry) || 0;
-          const wet = parseFloat(a.RentalWet) || 0;
-          const isRentable = dry > 0 || wet > 0;
-          return isModel && (!rentableOnly || isRentable);
-        });
-        
-        if (rentableOfModel.length > 0) {
-          aircraftAvailable[icao] = rentableOfModel.map(a => a.Registration);
+      if (!rentableOnly || isRentable) {
+        const icao = a.Location;
+        if (icao && icao !== "In Flight") {
+          if (!aircraftAvailable[icao]) aircraftAvailable[icao] = [];
+          aircraftAvailable[icao].push(a.Registration);
         }
       }
-      origins = origins.filter(icao => aircraftAvailable[icao]);
+    }
 
-    } else {
-      // MODE 2: GLOBAL SEARCH
-      // Search aircraft globally by makemodel
-      const acUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=aircraft&search=makemodel&makemodel=${encodeURIComponent(makemodel)}`;
-      const acRes = await executeQuery(acUrl);
-      const acList = parseFseXml(acRes.raw, "Aircraft");
+    let origins = Object.keys(aircraftAvailable);
 
-      for (const a of acList) {
-        const dry = parseFloat(a.RentalDry) || 0;
-        const wet = parseFloat(a.RentalWet) || 0;
-        const isRentable = dry > 0 || wet > 0;
-        
-        if (!rentableOnly || isRentable) {
-          const icao = a.Location;
-          if (icao && icao !== "In Flight") {
-            if (!aircraftAvailable[icao]) aircraftAvailable[icao] = [];
-            aircraftAvailable[icao].push(a.Registration);
-          }
-        }
-      }
-      origins = Object.keys(aircraftAvailable);
+    // 3. If user provided specific ICAOs, filter our origins list to only those.
+    if (icaos && icaos.trim()) {
+      const requestedOrigins = icaos.split("-").map(s => s.trim().toUpperCase()).filter(Boolean);
+      origins = origins.filter(o => requestedOrigins.includes(o));
     }
 
     if (origins.length === 0) {
-      return { statusCode: 200, body: JSON.stringify({ matches: [] }) };
+      return { 
+        statusCode: 200, 
+        body: JSON.stringify({ 
+          matches: [], 
+          debug: { message: "No available aircraft found matching the criteria.", acListTotal: acList.length }
+        }) 
+      };
     }
 
-    // 2. Fetch jobs from the matched origins
-    // FSE allows multiple ICAOs for jobsfrom. We chunk them to reduce API calls and avoid 10s timeout.
+    // 4. Fetch jobs from the matched origins in chunks
     const chunkSize = 100; 
     let allJobs = [];
     
@@ -120,22 +103,30 @@ exports.handler = async (event) => {
       allJobs = allJobs.concat(chunkJobs);
     }
 
-    // 3. Filter jobs by commodity and capacity
+    // 5. Filter jobs by commodity/type and capacity
     const commodityLower = (commodity || "").toLowerCase();
     
     const finalJobs = allJobs.filter(j => {
-      if (commodityLower && !(j.Commodity || "").toLowerCase().includes(commodityLower)) return false;
+      // Check both Commodity and Type tags for matches (e.g. VIP is often in Type)
+      if (commodityLower) {
+        const comm = (j.Commodity || "").toLowerCase();
+        const type = (j.Type || "").toLowerCase();
+        if (!comm.includes(commodityLower) && !type.includes(commodityLower)) {
+          return false;
+        }
+      }
       
       const amount = parseFloat(j.Amount) || 0;
       const unit = (j.UnitType || "").toLowerCase();
       
+      // Capacity check
       if (unit === "passengers" && seats > 0 && amount > seats) return false;
       if (unit === "kg" && maxPayload > 0 && amount > maxPayload) return false;
       
       return true;
     });
 
-    // 4. Format results
+    // 6. Format results
     const results = finalJobs.map(j => {
       const pay = parseFloat(j.Pay) || 0;
       const distance = parseFloat(j.Distance) || 0;
@@ -144,7 +135,7 @@ exports.handler = async (event) => {
       return {
         Origin: j.Location,
         Destination: j.ToIcao,
-        Commodity: j.Commodity,
+        Commodity: j.Commodity || j.Type || "N/A", // Use Type if Commodity is empty
         Amount: `${j.Amount} ${j.UnitType}`,
         Distance: distance > 0 ? distance : "?",
         Pay: pay,
@@ -162,7 +153,13 @@ exports.handler = async (event) => {
       body: JSON.stringify({ 
         matches: results, 
         aircraftConfig: { seats, maxPayload }, 
-        locationsCount: origins.length 
+        locationsCount: origins.length,
+        debug: { 
+          totalAircraftFound: acList.length,
+          originsWithAircraft: origins.length,
+          totalJobsFetched: allJobs.length,
+          finalJobsCount: finalJobs.length
+        }
       }),
     };
 
