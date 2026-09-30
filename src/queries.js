@@ -41,6 +41,10 @@ const paymentColumns = [
   "Date", "To", "From", "Amount", "Reason", "Comment",
 ];
 
+const commodityColumns = [
+  "Location", "Commodity", "Amount", "Weight", "Volume"
+];
+
 const queries = [
   {
     id: "aircraft-status-registration",
@@ -151,6 +155,7 @@ const queries = [
     query: "commodities",
     search: "key",
     needsReadAccessKey: true,
+    essentialColumns: commodityColumns,
     fields: [],
   },
   {
