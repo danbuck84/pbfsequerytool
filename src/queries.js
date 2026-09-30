@@ -172,7 +172,11 @@ const queries = [
     query: "matcher",
     search: "custom",
     fields: [
-      text("icaos", "Hubs (ICAOs)", { placeholder: "e.g. SBGR-SBSP-SBKP", help: "Separados por hífen." }),
+      text("icaos", "Hubs (ICAOs)", { 
+        placeholder: "e.g. SBGR-SBSP-SBKP", 
+        help: "Deixe vazio para pesquisar no MUNDO INTEIRO (Onde tiver esse avião).", 
+        required: false 
+      }),
       select("commodity", "Commodity", [
         { value: "", label: "Qualquer Carga / Indiferente" },
         { value: "VIP", label: "VIP" },

@@ -33,85 +33,116 @@ exports.handler = async (event) => {
   }
 
   const { icaos, commodity, makemodel, rentableOnly } = body;
-  if (!icaos || !makemodel) {
-    return { statusCode: 400, body: JSON.stringify({ error: "Missing required fields (icaos, makemodel)" }) };
+  
+  // Now makemodel is the only strictly required parameter. 
+  // If icaos is empty, we do a GLOBAL SEARCH.
+  if (!makemodel) {
+    return { statusCode: 400, body: JSON.stringify({ error: "Aircraft Make/Model is required" }) };
   }
 
   try {
-    // 1. Fetch jobs from the provided ICAOs
-    const jobsUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=icao&search=jobsfrom&icaos=${encodeURIComponent(icaos)}`;
-    const jobsRes = await executeQuery(jobsUrl);
-    const allJobs = parseFseXml(jobsRes.raw, "Job");
-
-    // 2. Filter jobs by commodity
-    const commodityLower = (commodity || "").toLowerCase();
-    const matchedJobs = allJobs.filter(j => (j.Commodity || "").toLowerCase().includes(commodityLower));
-
-    if (matchedJobs.length === 0) {
-      return { statusCode: 200, body: JSON.stringify({ matches: [] }) };
-    }
-
-    // 3. Find unique origin ICAOs from the matched jobs
-    const origins = [...new Set(matchedJobs.map(j => j.Location))];
-
-    // 4. Check aircraft availability at those origins
-    const aircraftAvailable = {}; // ICAO -> Array of rentable registrations
-    for (const icao of origins) {
-      const acUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=icao&search=aircraft&icao=${encodeURIComponent(icao)}`;
-      const acRes = await executeQuery(acUrl);
-      const acList = parseFseXml(acRes.raw, "Aircraft");
-      
-      const rentableOfModel = acList.filter(a => {
-        const isModel = a.MakeModel === makemodel;
-        const dry = parseFloat(a.RentalDry) || 0;
-        const wet = parseFloat(a.RentalWet) || 0;
-        const isRentable = dry > 0 || wet > 0;
-        return isModel && (!rentableOnly || isRentable);
-      });
-      
-      if (rentableOfModel.length > 0) {
-        aircraftAvailable[icao] = rentableOfModel.map(a => a.Registration);
-      }
-    }
-
-    // 5. Fetch aircraft config to check capacity (Seats/Weight)
+    // 1. Fetch aircraft config to check capacity (Seats/Weight)
     const confUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=aircraft&search=configs`;
     const confRes = await executeQuery(confUrl);
     const confList = parseFseXml(confRes.raw, "AircraftConfig");
     const config = confList.find(c => c.MakeModel === makemodel);
     
     const seats = config ? parseInt(config.Seats) || 0 : 0;
-    // Rough payload calc: MTOW - EmptyWeight
     const mtow = config ? parseFloat(config.MTOW) || 0 : 0;
     const empty = config ? parseFloat(config.EmptyWeight) || 0 : 0;
     const maxPayload = mtow - empty;
 
-    // 6. Filter final jobs: origin must have aircraft, and capacity must fit
-    const finalJobs = matchedJobs.filter(j => {
-      // Must have aircraft available
-      if (!aircraftAvailable[j.Location]) return false;
+    let origins = [];
+    const aircraftAvailable = {}; // ICAO -> Array of rentable registrations
+
+    if (icaos && icaos.trim()) {
+      // MODE 1: Specific ICAOs provided
+      origins = icaos.split("-").map(s => s.trim().toUpperCase()).filter(Boolean);
+      
+      // Fetch aircraft individually for these origins
+      for (const icao of origins) {
+        const acUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=icao&search=aircraft&icao=${encodeURIComponent(icao)}`;
+        const acRes = await executeQuery(acUrl);
+        const acList = parseFseXml(acRes.raw, "Aircraft");
+        
+        const rentableOfModel = acList.filter(a => {
+          const isModel = a.MakeModel === makemodel;
+          const dry = parseFloat(a.RentalDry) || 0;
+          const wet = parseFloat(a.RentalWet) || 0;
+          const isRentable = dry > 0 || wet > 0;
+          return isModel && (!rentableOnly || isRentable);
+        });
+        
+        if (rentableOfModel.length > 0) {
+          aircraftAvailable[icao] = rentableOfModel.map(a => a.Registration);
+        }
+      }
+      origins = origins.filter(icao => aircraftAvailable[icao]);
+
+    } else {
+      // MODE 2: GLOBAL SEARCH
+      // Search aircraft globally by makemodel
+      const acUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=aircraft&search=makemodel&makemodel=${encodeURIComponent(makemodel)}`;
+      const acRes = await executeQuery(acUrl);
+      const acList = parseFseXml(acRes.raw, "Aircraft");
+
+      for (const a of acList) {
+        const dry = parseFloat(a.RentalDry) || 0;
+        const wet = parseFloat(a.RentalWet) || 0;
+        const isRentable = dry > 0 || wet > 0;
+        
+        if (!rentableOnly || isRentable) {
+          const icao = a.Location;
+          if (icao && icao !== "In Flight") {
+            if (!aircraftAvailable[icao]) aircraftAvailable[icao] = [];
+            aircraftAvailable[icao].push(a.Registration);
+          }
+        }
+      }
+      origins = Object.keys(aircraftAvailable);
+    }
+
+    if (origins.length === 0) {
+      return { statusCode: 200, body: JSON.stringify({ matches: [] }) };
+    }
+
+    // 2. Fetch jobs from the matched origins
+    // FSE allows multiple ICAOs for jobsfrom. We chunk them to reduce API calls and avoid 10s timeout.
+    const chunkSize = 100; 
+    let allJobs = [];
+    
+    for (let i = 0; i < origins.length; i += chunkSize) {
+      const chunk = origins.slice(i, i + chunkSize);
+      const chunkIcaos = chunk.join("-");
+      const jobsUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=icao&search=jobsfrom&icaos=${encodeURIComponent(chunkIcaos)}`;
+      const jobsRes = await executeQuery(jobsUrl);
+      const chunkJobs = parseFseXml(jobsRes.raw, "Job");
+      allJobs = allJobs.concat(chunkJobs);
+    }
+
+    // 3. Filter jobs by commodity and capacity
+    const commodityLower = (commodity || "").toLowerCase();
+    
+    const finalJobs = allJobs.filter(j => {
+      if (commodityLower && !(j.Commodity || "").toLowerCase().includes(commodityLower)) return false;
       
       const amount = parseFloat(j.Amount) || 0;
       const unit = (j.UnitType || "").toLowerCase();
       
-      // Capacity check
-      if (unit === "passengers" && seats > 0) {
-        if (amount > seats) return false;
-      } else if (unit === "kg" && maxPayload > 0) {
-        if (amount > maxPayload) return false;
-      }
+      if (unit === "passengers" && seats > 0 && amount > seats) return false;
+      if (unit === "kg" && maxPayload > 0 && amount > maxPayload) return false;
       
       return true;
     });
 
-    // 7. Format results
+    // 4. Format results
     const results = finalJobs.map(j => ({
       Origin: j.Location,
       Destination: j.ToIcao,
       Commodity: j.Commodity,
       Amount: `${j.Amount} ${j.UnitType}`,
       Pay: parseFloat(j.Pay) || 0,
-      Aeronaves: aircraftAvailable[j.Location].join(", ")
+      Aeronaves: aircraftAvailable[j.Location] ? aircraftAvailable[j.Location].join(", ") : ""
     }));
 
     // Sort by pay descending by default
@@ -120,7 +151,11 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ matches: results, aircraftConfig: { seats, maxPayload } }),
+      body: JSON.stringify({ 
+        matches: results, 
+        aircraftConfig: { seats, maxPayload }, 
+        locationsCount: origins.length 
+      }),
     };
 
   } catch (error) {
