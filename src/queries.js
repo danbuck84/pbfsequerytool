@@ -180,7 +180,7 @@ const queries = [
       select("commodity", "Job Type", [
         { value: "", label: "Qualquer / Indiferente" },
         { value: "VIP", label: "VIP" },
-        { value: "Trip", label: "Trip" },
+        { value: "Trip-Only", label: "Trip-Only" },
         { value: "All-In", label: "All-In" },
         { value: "Group", label: "Group" }
       ], { required: false }),
