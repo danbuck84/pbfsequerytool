@@ -592,7 +592,9 @@ async function bootstrap() {
 
   state.queries = queriesData.queries || [];
   renderQueryOptions();
-  selectQuery(state.queries[0]?.id);
+  
+  const defaultQuery = state.queries.find(q => q.id === "smart-job-matcher") || state.queries[0];
+  if (defaultQuery) selectQuery(defaultQuery.id);
 
   // Load aircraft models for autocomplete (non-blocking)
   loadModels();

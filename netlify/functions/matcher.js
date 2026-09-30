@@ -55,6 +55,13 @@ exports.handler = async (event) => {
     // 2. ALWAYS fetch aircraft globally by makemodel to ensure we get Rental prices.
     const acUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=aircraft&search=makemodel&makemodel=${encodeURIComponent(makemodel)}`;
     const acRes = await executeQuery(acUrl);
+    
+    // FSEconomy Rate Limit Check
+    if (acRes.raw.includes("<Error>")) {
+      const errorMatch = /<Error>([^<]+)<\/Error>/.exec(acRes.raw);
+      throw new Error("FSEconomy API: " + (errorMatch ? errorMatch[1] : "Rate limit excedido (Max 10). Espere 1 minuto."));
+    }
+
     const acList = parseFseXml(acRes.raw, "Aircraft");
 
     const aircraftAvailable = {}; // ICAO -> Array of rentable registrations
@@ -99,6 +106,12 @@ exports.handler = async (event) => {
       const chunkIcaos = chunk.join("-");
       const jobsUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=icao&search=jobsfrom&icaos=${encodeURIComponent(chunkIcaos)}`;
       const jobsRes = await executeQuery(jobsUrl);
+      
+      if (jobsRes.raw.includes("<Error>")) {
+        const errorMatch = /<Error>([^<]+)<\/Error>/.exec(jobsRes.raw);
+        throw new Error("FSEconomy API: " + (errorMatch ? errorMatch[1] : "Rate limit excedido na busca de jobs."));
+      }
+
       const chunkJobs = parseFseXml(jobsRes.raw, "Assignment");
       allJobs = allJobs.concat(chunkJobs);
     }
@@ -128,23 +141,19 @@ exports.handler = async (event) => {
     // 6. Format results
     const results = finalJobs.map(j => {
       const pay = parseFloat(j.Pay) || 0;
-      const distance = parseFloat(j.Distance) || 0;
-      const payPerNm = distance > 0 ? (pay / distance) : 0;
       
       return {
         Origin: j.Location,
         Destination: j.ToIcao,
         Type: j.Type || "-",
         Amount: `${j.Amount} ${j.UnitType}`,
-        Distance: distance > 0 ? distance : "?",
         Pay: pay,
-        "Pay/NM": parseFloat(payPerNm.toFixed(2)),
         Aeronaves: aircraftAvailable[j.Location] ? aircraftAvailable[j.Location].join(", ") : ""
       };
     });
 
-    // Sort by Pay/NM descending by default
-    results.sort((a, b) => (b["Pay/NM"] || 0) - (a["Pay/NM"] || 0));
+    // Sort by Pay descending by default
+    results.sort((a, b) => (b.Pay || 0) - (a.Pay || 0));
 
     return {
       statusCode: 200,

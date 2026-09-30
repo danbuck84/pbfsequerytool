@@ -9,7 +9,7 @@ async function run() {
       icaos: '',
       commodity: 'VIP',
       makemodel: 'Embraer Phenom 100',
-      rentableOnly: true
+      rentableOnly: false
     })
   };
 
