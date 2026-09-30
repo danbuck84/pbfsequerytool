@@ -177,6 +177,7 @@ exports.handler = async (event) => {
         aircraftConfig: { seats, maxPayload }, 
         locationsCount: origins.length,
         debug: { 
+          hasModel,
           totalAircraftFound,
           originsWithAircraft: origins.length,
           totalJobsFetched: allJobs.length,

@@ -573,6 +573,13 @@ async function runQuery(event) {
     buildFilters();
 
     elements.resultSection.classList.remove("hidden");
+    
+    if (isMatcher && data.debug) {
+      const dbg = data.debug;
+      const msg = `[DEBUG] hasModel: ${dbg.hasModel} | Origins: ${dbg.originsWithAircraft} | Total Jobs: ${dbg.totalJobsFetched} | Filtrados: ${dbg.finalJobsCount}`;
+      setMessage(msg, "ok");
+    }
+    
   } catch (error) {
     elements.resultSection.classList.add("hidden");
     setMessage(error.message, "error");
