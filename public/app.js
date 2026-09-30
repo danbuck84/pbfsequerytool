@@ -574,10 +574,9 @@ async function runQuery(event) {
 
     elements.resultSection.classList.remove("hidden");
     
-    if (isMatcher && data.debug) {
-      const dbg = data.debug;
-      const msg = `[DEBUG] hasModel: ${dbg.hasModel} | Origins: ${dbg.originsWithAircraft} | Total Jobs: ${dbg.totalJobsFetched} | Filtrados: ${dbg.finalJobsCount}`;
-      setMessage(msg, "ok");
+    // FORCE DUMP TO SCREEN
+    if (isMatcher) {
+      elements.resultTable.innerHTML += `<tr><td colspan="10" style="text-align:left; background:#fff; padding:20px; font-size:12px; font-family:monospace; color:#c00; white-space:pre-wrap; word-break:break-all;">DATA DUMP:\n${JSON.stringify(data, null, 2)}</td></tr>`;
     }
     
   } catch (error) {
