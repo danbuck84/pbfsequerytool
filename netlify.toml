@@ -27,3 +27,9 @@
   from = "/api/matcher"
   to = "/.netlify/functions/matcher"
   status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
