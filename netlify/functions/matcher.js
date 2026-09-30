@@ -35,66 +35,78 @@ exports.handler = async (event) => {
   const { icaos, commodity, makemodel, rentableOnly } = body;
   
   // Now makemodel is the only strictly required parameter. 
-  // If icaos is empty, we do a GLOBAL SEARCH.
-  if (!makemodel) {
-    return { statusCode: 400, body: JSON.stringify({ error: "Aircraft Make/Model is required" }) };
+  const hasModel = makemodel && makemodel.trim().length > 0;
+  const hasIcaos = icaos && icaos.trim().length > 0;
+
+  if (!hasModel && !hasIcaos) {
+    return { statusCode: 400, body: JSON.stringify({ error: "Você precisa preencher os Hubs ou o Aircraft Model (ou ambos)." }) };
   }
 
   try {
-    // 1. Fetch aircraft config to check capacity (Seats/Weight)
-    const confUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=aircraft&search=configs`;
-    const confRes = await executeQuery(confUrl);
-    const confList = parseFseXml(confRes.raw, "AircraftConfig");
-    const config = confList.find(c => c.MakeModel === makemodel);
-    
-    const seats = config ? parseInt(config.Seats) || 0 : 0;
-    const mtow = config ? parseFloat(config.MTOW) || 0 : 0;
-    const empty = config ? parseFloat(config.EmptyWeight) || 0 : 0;
-    const maxPayload = mtow - empty;
-
-    // 2. ALWAYS fetch aircraft globally by makemodel to ensure we get Rental prices.
-    const acUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=aircraft&search=makemodel&makemodel=${encodeURIComponent(makemodel)}`;
-    const acRes = await executeQuery(acUrl);
-    
-    // FSEconomy Rate Limit Check
-    if (acRes.raw.includes("<Error>")) {
-      const errorMatch = /<Error>([^<]+)<\/Error>/.exec(acRes.raw);
-      throw new Error("FSEconomy API: " + (errorMatch ? errorMatch[1] : "Rate limit excedido (Max 10). Espere 1 minuto."));
-    }
-
-    const acList = parseFseXml(acRes.raw, "Aircraft");
-
+    let seats = 0, mtow = 0, empty = 0, maxPayload = 0;
+    let origins = [];
+    let totalAircraftFound = 0;
     const aircraftAvailable = {}; // ICAO -> Array of rentable registrations
-    for (const a of acList) {
-      const dry = parseFloat(a.RentalDry) || 0;
-      const wet = parseFloat(a.RentalWet) || 0;
-      const isRentable = dry > 0 || wet > 0;
+
+    if (hasModel) {
+      // 1. Fetch aircraft config to check capacity (Seats/Weight)
+      const confUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=aircraft&search=configs`;
+      const confRes = await executeQuery(confUrl);
+      const confList = parseFseXml(confRes.raw, "AircraftConfig");
+      const config = confList.find(c => c.MakeModel === makemodel);
       
-      if (!rentableOnly || isRentable) {
-        const icao = a.Location;
-        if (icao && icao !== "In Flight") {
-          if (!aircraftAvailable[icao]) aircraftAvailable[icao] = [];
-          aircraftAvailable[icao].push(a.Registration);
+      seats = config ? parseInt(config.Seats) || 0 : 0;
+      mtow = config ? parseFloat(config.MTOW) || 0 : 0;
+      empty = config ? parseFloat(config.EmptyWeight) || 0 : 0;
+      maxPayload = mtow - empty;
+
+      // 2. ALWAYS fetch aircraft globally by makemodel to ensure we get Rental prices.
+      const acUrl = `${baseUrl}?userkey=${encodeURIComponent(userKey)}&format=xml&query=aircraft&search=makemodel&makemodel=${encodeURIComponent(makemodel)}`;
+      const acRes = await executeQuery(acUrl);
+      
+      // FSEconomy Rate Limit Check
+      if (acRes.raw.includes("<Error>")) {
+        const errorMatch = /<Error>([^<]+)<\/Error>/.exec(acRes.raw);
+        throw new Error("FSEconomy API: " + (errorMatch ? errorMatch[1] : "Rate limit excedido (Max 10). Espere 1 minuto."));
+      }
+
+      const acList = parseFseXml(acRes.raw, "Aircraft");
+      totalAircraftFound = acList.length;
+
+      for (const a of acList) {
+        const dry = parseFloat(a.RentalDry) || 0;
+        const wet = parseFloat(a.RentalWet) || 0;
+        const isRentable = dry > 0 || wet > 0;
+        
+        if (!rentableOnly || isRentable) {
+          const icao = a.Location;
+          if (icao && icao !== "In Flight") {
+            if (!aircraftAvailable[icao]) aircraftAvailable[icao] = [];
+            aircraftAvailable[icao].push(a.Registration);
+          }
         }
       }
-    }
 
-    let origins = Object.keys(aircraftAvailable);
+      origins = Object.keys(aircraftAvailable);
 
-    // 3. If user provided specific ICAOs, filter our origins list to only those.
-    if (icaos && icaos.trim()) {
-      const requestedOrigins = icaos.split("-").map(s => s.trim().toUpperCase()).filter(Boolean);
-      origins = origins.filter(o => requestedOrigins.includes(o));
-    }
+      // 3. If user provided specific ICAOs, filter our origins list to only those.
+      if (hasIcaos) {
+        const requestedOrigins = icaos.split("-").map(s => s.trim().toUpperCase()).filter(Boolean);
+        origins = origins.filter(o => requestedOrigins.includes(o));
+      }
 
-    if (origins.length === 0) {
-      return { 
-        statusCode: 200, 
-        body: JSON.stringify({ 
-          matches: [], 
-          debug: { message: "No available aircraft found matching the criteria.", acListTotal: acList.length }
-        }) 
-      };
+      if (origins.length === 0) {
+        return { 
+          statusCode: 200, 
+          body: JSON.stringify({ 
+            matches: [], 
+            debug: { message: "Nenhuma aeronave encontrada nos hubs informados.", acListTotal: acList.length }
+          }) 
+        };
+      }
+    } else {
+      // If no model provided, just use the provided ICAOs directly
+      origins = icaos.split("-").map(s => s.trim().toUpperCase()).filter(Boolean);
     }
 
     // 4. Fetch jobs from the matched origins in chunks
@@ -128,12 +140,14 @@ exports.handler = async (event) => {
         }
       }
       
-      const amount = parseFloat(j.Amount) || 0;
-      const unit = (j.UnitType || "").toLowerCase();
-      
-      // Capacity check
-      if (unit === "passengers" && seats > 0 && amount > seats) return false;
-      if (unit === "kg" && maxPayload > 0 && amount > maxPayload) return false;
+      if (hasModel) {
+        const amount = parseFloat(j.Amount) || 0;
+        const unit = (j.UnitType || "").toLowerCase();
+        
+        // Capacity check
+        if (unit === "passengers" && seats > 0 && amount > seats) return false;
+        if (unit === "kg" && maxPayload > 0 && amount > maxPayload) return false;
+      }
       
       return true;
     });
@@ -148,7 +162,7 @@ exports.handler = async (event) => {
         Type: j.Type || "-",
         Amount: `${j.Amount} ${j.UnitType}`,
         Pay: pay,
-        Aeronaves: aircraftAvailable[j.Location] ? aircraftAvailable[j.Location].join(", ") : ""
+        Aeronaves: aircraftAvailable[j.Location] ? aircraftAvailable[j.Location].join(", ") : (hasModel ? "" : "N/A")
       };
     });
 
@@ -163,7 +177,7 @@ exports.handler = async (event) => {
         aircraftConfig: { seats, maxPayload }, 
         locationsCount: origins.length,
         debug: { 
-          totalAircraftFound: acList.length,
+          totalAircraftFound,
           originsWithAircraft: origins.length,
           totalJobsFetched: allJobs.length,
           finalJobsCount: finalJobs.length

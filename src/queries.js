@@ -184,7 +184,7 @@ const queries = [
         { value: "All-In", label: "All-In" },
         { value: "Group", label: "Group" }
       ], { required: false }),
-      text("makemodel", "Aircraft Make/Model", { placeholder: "e.g. Embraer Phenom 100" }),
+      text("makemodel", "Aircraft Make/Model", { placeholder: "e.g. Embraer Phenom 100", required: false }),
       checkbox("rentableOnly", "Somente aeronaves disponíveis para alugar", { checked: true })
     ],
   },
