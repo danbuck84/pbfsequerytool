@@ -136,17 +136,25 @@ exports.handler = async (event) => {
     });
 
     // 4. Format results
-    const results = finalJobs.map(j => ({
-      Origin: j.Location,
-      Destination: j.ToIcao,
-      Commodity: j.Commodity,
-      Amount: `${j.Amount} ${j.UnitType}`,
-      Pay: parseFloat(j.Pay) || 0,
-      Aeronaves: aircraftAvailable[j.Location] ? aircraftAvailable[j.Location].join(", ") : ""
-    }));
+    const results = finalJobs.map(j => {
+      const pay = parseFloat(j.Pay) || 0;
+      const distance = parseFloat(j.Distance) || 0;
+      const payPerNm = distance > 0 ? (pay / distance) : 0;
+      
+      return {
+        Origin: j.Location,
+        Destination: j.ToIcao,
+        Commodity: j.Commodity,
+        Amount: `${j.Amount} ${j.UnitType}`,
+        Distance: distance > 0 ? distance : "?",
+        Pay: pay,
+        "Pay/NM": parseFloat(payPerNm.toFixed(2)),
+        Aeronaves: aircraftAvailable[j.Location] ? aircraftAvailable[j.Location].join(", ") : ""
+      };
+    });
 
-    // Sort by pay descending by default
-    results.sort((a, b) => b.Pay - a.Pay);
+    // Sort by Pay/NM descending by default
+    results.sort((a, b) => (b["Pay/NM"] || 0) - (a["Pay/NM"] || 0));
 
     return {
       statusCode: 200,
